@@ -49,7 +49,7 @@
   set_fact:
     body_dict: [ '{{godaddy_dns_record}}' ]
 
-- name: setup setup record_data (json)
+- name: setup record_data (json)
   set_fact:
     body: '{{body_dict|to_nice_json}}'
 
@@ -63,7 +63,35 @@
     var:        body
     verbosity:  3
 
-- name: call godaddy api to update/create new record
+- name: call godaddy api to get record
+  uri:
+    url:          '{{api_server_url}}/{{type}}/{{godaddy_record_name}}'
+    method:       GET
+    headers:
+      Authorization: '{{authorization}}'
+      Accept: 'application/json'
+  register: dns_retrive
+
+- name: setup current_record_data
+  set_fact:
+    current_record_data: "{{ dns_retrive.json | map(attribute='data') | join(', ') }}"
+
+- name: setup current_type
+  set_fact:
+    current_type: "{{ dns_retrive.json | map(attribute='type') | join(', ') }}"
+
+- name: call godaddy api to update record(s)
+  uri:
+    url:          '{{api_server_url}}/{{type}}/{{godaddy_record_name}}'
+    method:       PUT
+    body:         '{{body}}'
+    body_format:  json
+    headers:
+      Authorization: '{{authorization}}'
+      Accept: 'application/json'
+  when: current_record_data != "" and (current_record_data != record_data or current_type != type)
+
+- name: call godaddy api to create new record
   uri:
     url:          '{{api_server_url}}'
     method:       PATCH
@@ -72,3 +100,4 @@
     headers:
       Authorization: '{{authorization}}'
       Accept: 'application/json'
+  when: current_record_data == ""
